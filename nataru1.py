@@ -1,11 +1,12 @@
 """
-Dashboard QoS Telekomunikasi - FINAL VERSION (ERROR FIXED)
+Dashboard QoS Telekomunikasi - COMPLETE VERSION (2G + 4G)
 ✅ Auto-read from 'data' folder
 ✅ Perfect baseline charts
 ✅ Exclude Smartfren (Indosat, Telkomsel, XL only)
-✅ Complete Parameters: Signal, Browsing, Speed Test, Ping Test, YouTube
+✅ Complete Parameters: Signal (2G + 4G), Browsing, Speed Test, Ping Test, YouTube
 ✅ PETA INTERAKTIF dengan informasi per lokasi pengukuran
 ✅ Kesimpulan per tanggal untuk semua operator
+✅ 2G METRICS INCLUDED (RxLev, RxQual)
 ✅ NO ERRORS - READY TO RUN
 """
 
@@ -39,6 +40,20 @@ st.markdown("""
         -webkit-text-fill-color: transparent;
         text-align: center;
         padding: 1rem 0;
+    }
+    .tech-badge-2g {
+        background: linear-gradient(135deg, #95a5a6, #7f8c8d);
+        color: white; padding: 0.3rem 0.8rem;
+        border-radius: 5px; display: inline-block;
+        font-weight: bold; margin: 0.2rem;
+        font-size: 0.9rem;
+    }
+    .tech-badge-4g {
+        background: linear-gradient(135deg, #3498db, #2980b9);
+        color: white; padding: 0.3rem 0.8rem;
+        border-radius: 5px; display: inline-block;
+        font-weight: bold; margin: 0.2rem;
+        font-size: 0.9rem;
     }
     .quality-excellent {
         background: linear-gradient(135deg, #2ecc71, #27ae60);
@@ -126,7 +141,8 @@ def identify_numeric_columns(df):
                 'Speed', 'Mbps', 'RSRP', 'RSRQ', 'SINR', 'Latency', 'RTT',
                 'YouTube', 'Youtube', 'Quality', 'MOS', 'CST', 'Sample',
                 'TTFP', 'Visual', 'Freezing', 'Jerkiness', 'Browsing', 'Ping',
-                'Packet', 'Loss', 'Lat', 'Long']
+                'Packet', 'Loss', 'Lat', 'Long',
+                'RxLev', 'RxQual', '2G']  # 2G metrics added
     skip = ['No.', 'Zona', 'Kabupaten / Kota', 'Lokasi Pengukuran',
             'Tanggal Pengukuran', 'Operator', 'Category', 'Jenis Tes']
     numeric_cols = []
@@ -293,15 +309,22 @@ def create_interactive_map(data):
         if map_data.empty:
             return None
         
-        # Create hover text dengan informasi lengkap
+        # Create hover text dengan informasi lengkap (2G + 4G)
         hover_texts = []
         for _, row in map_data.iterrows():
             text = f"<b>{row['Lokasi Pengukuran']}</b><br>"
             text += f"Operator: {row['Operator']}<br>"
             text += "━━━━━━━━━━━━━━━━━━━<br>"
             
+            # 2G Metrics
+            if 'Average RxLev (2G)' in row and pd.notna(row['Average RxLev (2G)']):
+                text += f"📶 2G RxLev: {row['Average RxLev (2G)']:.1f} dBm<br>"
+            if 'Average RxQual (2G)' in row and pd.notna(row['Average RxQual (2G)']):
+                text += f"📶 2G RxQual: {row['Average RxQual (2G)']:.1f}<br>"
+            
+            # 4G Metrics
             if 'Average RSRP (Signal Strenght 4G)' in row and pd.notna(row['Average RSRP (Signal Strenght 4G)']):
-                text += f"📡 RSRP: {row['Average RSRP (Signal Strenght 4G)']:.1f} dBm<br>"
+                text += f"📡 4G RSRP: {row['Average RSRP (Signal Strenght 4G)']:.1f} dBm<br>"
             if 'Average Speed Test DL (Mbps) (4G)' in row and pd.notna(row['Average Speed Test DL (Mbps) (4G)']):
                 text += f"🚀 DL Speed: {row['Average Speed Test DL (Mbps) (4G)']:.1f} Mbps<br>"
             if 'Youtube SR (%)' in row and pd.notna(row['Youtube SR (%)']):
@@ -326,7 +349,7 @@ def create_interactive_map(data):
             hover_data={'Lat': False, 'Long': False, 'Operator': True, 'hover_text': False},
             zoom=9,
             height=700,
-            title="🗺️ Peta Lokasi Pengukuran QoS"
+            title="🗺️ Peta Lokasi Pengukuran QoS (2G + 4G)"
         )
         
         # Update map style
@@ -369,6 +392,16 @@ def categorize_quality(value, metric_type):
         elif value >= -90: return "Good", "quality-good"
         elif value >= -100: return "Fair", "quality-fair"
         else: return "Poor", "quality-poor"
+    elif metric_type == 'rxlev':  # 2G RxLev
+        if value >= -75: return "Excellent", "quality-excellent"
+        elif value >= -85: return "Good", "quality-good"
+        elif value >= -95: return "Fair", "quality-fair"
+        else: return "Poor", "quality-poor"
+    elif metric_type == 'rxqual':  # 2G RxQual (lower is better, 0-7 scale)
+        if value <= 2: return "Excellent", "quality-excellent"
+        elif value <= 4: return "Good", "quality-good"
+        elif value <= 5: return "Fair", "quality-fair"
+        else: return "Poor", "quality-poor"
     elif metric_type == 'speed':
         if value >= 30: return "Excellent", "quality-excellent"
         elif value >= 15: return "Good", "quality-good"
@@ -382,7 +415,7 @@ def categorize_quality(value, metric_type):
     return "Unknown", "quality-poor"
 
 def generate_detailed_conclusion_per_date(df_data, location, date_str):
-    """Generate kesimpulan untuk SEMUA operator di lokasi & tanggal tertentu"""
+    """Generate kesimpulan untuk SEMUA operator di lokasi & tanggal tertentu (2G + 4G)"""
     lines = []
     
     lines.append("### 📋 Kesimpulan Pengukuran")
@@ -403,7 +436,27 @@ def generate_detailed_conclusion_per_date(df_data, location, date_str):
         
         scores = []
         
-        # Signal Quality
+        # 2G Signal Quality
+        has_2g = ('Average RxLev (2G)' in op_data.columns or 'Average RxQual (2G)' in op_data.columns)
+        if has_2g:
+            lines.append("**📶 Signal Quality 2G:**")
+            if 'Average RxLev (2G)' in op_data.columns:
+                rxlev = safe_agg(op_data['Average RxLev (2G)'])
+                if pd.notna(rxlev):
+                    cat, cls = categorize_quality(rxlev, 'rxlev')
+                    lines.append(f"- RxLev: **{rxlev:.2f} dBm** - <span class='{cls}'>{cat}</span>")
+                    scores.append(1 if rxlev >= -75 else 0.75 if rxlev >= -85 else 0.5 if rxlev >= -95 else 0.25)
+            
+            if 'Average RxQual (2G)' in op_data.columns:
+                rxqual = safe_agg(op_data['Average RxQual (2G)'])
+                if pd.notna(rxqual):
+                    cat, cls = categorize_quality(rxqual, 'rxqual')
+                    lines.append(f"- RxQual: **{rxqual:.2f}** - <span class='{cls}'>{cat}</span> (0=best, 7=worst)")
+                    scores.append(1 if rxqual <= 2 else 0.75 if rxqual <= 4 else 0.5 if rxqual <= 5 else 0.25)
+            
+            lines.append("")
+        
+        # 4G Signal Quality
         lines.append("**📡 Signal Quality 4G:**")
         if 'Average RSRP (Signal Strenght 4G)' in op_data.columns:
             rsrp = safe_agg(op_data['Average RSRP (Signal Strenght 4G)'])
@@ -507,7 +560,7 @@ def generate_detailed_conclusion_per_date(df_data, location, date_str):
 # ===== MAIN APP =====
 def main():
     st.markdown('<p class="main-header">📡 Dashboard QoS Telekomunikasi</p>', unsafe_allow_html=True)
-    st.markdown('<p style="text-align: center; color: #666;">🗺️ Peta Interaktif | 📊 Complete Analysis | 13 Metrics</p>', unsafe_allow_html=True)
+    st.markdown('<p style="text-align: center; color: #666;">🗺️ Peta Interaktif | 📊 Complete Analysis | <span class="tech-badge-2g">2G</span> + <span class="tech-badge-4g">4G</span></p>', unsafe_allow_html=True)
     
     # Sidebar
     st.sidebar.title("📁 Sumber Data")
@@ -587,11 +640,11 @@ def main():
         st.warning("⚠️ Tidak ada data")
         return
     
-    # TABS - FIXED: 9 variabel untuk 9 tabs
+    # TABS - 9 tabs (Signal will include both 2G and 4G)
     tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs([
         "📊 Overview",
         "🗺️ Peta",
-        "📡 Signal",
+        "📡 Signal (2G + 4G)",
         "🌐 Browsing",
         "🚀 Speed Test",
         "🏓 Ping Test",
@@ -618,11 +671,11 @@ def main():
         st.markdown("### 📈 Summary per Operator")
         
         metrics = {
-            'RSRP (dBm)': 'Average RSRP (Signal Strenght 4G)',
+            'RxLev 2G (dBm)': 'Average RxLev (2G)',
+            'RxQual 2G': 'Average RxQual (2G)',
+            'RSRP 4G (dBm)': 'Average RSRP (Signal Strenght 4G)',
             'DL Speed (Mbps)': 'Average Speed Test DL (Mbps) (4G)',
-            'Browsing SR (%)': 'Browsing Success (%)',
-            'YouTube SR (%)': 'Youtube SR (%)',
-            'Latency (ms)': 'Average RTT Latency (ms)'
+            'YouTube SR (%)': 'Youtube SR (%)'
         }
         
         summary = {}
@@ -640,7 +693,7 @@ def main():
     # TAB 2: PETA INTERAKTIF
     with tab2:
         st.markdown("### 🗺️ Peta Lokasi Pengukuran QoS")
-        st.info("💡 Hover marker untuk melihat detail pengukuran di setiap lokasi")
+        st.info("💡 Hover marker untuk melihat detail pengukuran 2G + 4G di setiap lokasi")
         
         has_coords = 'Lat' in df_filtered.columns and 'Long' in df_filtered.columns
         valid_coords = df_filtered['Lat'].notna().sum() if has_coords else 0
@@ -672,26 +725,64 @@ def main():
             else:
                 st.error("❌ Gagal membuat peta")
     
-    # TAB 3: SIGNAL
+    # TAB 3: SIGNAL (2G + 4G)
     with tab3:
         st.markdown("### 📡 Signal Quality")
+        
+        # 2G Section
+        has_2g_data = ('Average RxLev (2G)' in df_filtered.columns or 
+                      'Average RxQual (2G)' in df_filtered.columns)
+        
+        if has_2g_data:
+            st.markdown("## 📶 2G Signal Quality")
+            st.markdown('<span class="tech-badge-2g">2G Technology</span>', unsafe_allow_html=True)
+            
+            if 'Average RxLev (2G)' in df_filtered.columns:
+                st.markdown("#### RxLev 2G (Signal Strength)")
+                agg = df_filtered.groupby(['Lokasi Pengukuran', 'Operator'], as_index=False).agg({
+                    'Average RxLev (2G)': lambda x: safe_agg(x)
+                })
+                fig = create_signal_quality_chart(agg, 'Lokasi Pengukuran',
+                    'Average RxLev (2G)', 'RxLev 2G per Lokasi (dBm)')
+                if fig:
+                    st.plotly_chart(fig, use_container_width=True)
+                    st.caption("📌 Excellent: ≥-75 dBm | Good: -75 to -85 dBm | Fair: -85 to -95 dBm | Poor: <-95 dBm")
+            
+            if 'Average RxQual (2G)' in df_filtered.columns:
+                st.markdown("#### RxQual 2G (Signal Quality)")
+                agg = df_filtered.groupby(['Lokasi Pengukuran', 'Operator'], as_index=False).agg({
+                    'Average RxQual (2G)': lambda x: safe_agg(x)
+                })
+                fig = create_speed_chart(agg, 'Lokasi Pengukuran',
+                    'Average RxQual (2G)', 'RxQual 2G per Lokasi (0=Best, 7=Worst)')
+                if fig:
+                    st.plotly_chart(fig, use_container_width=True)
+                    st.caption("📌 Excellent: ≤2 | Good: 3-4 | Fair: 5 | Poor: ≥6")
+            
+            st.markdown("---")
+        
+        # 4G Section
+        st.markdown("## 📡 4G Signal Quality")
+        st.markdown('<span class="tech-badge-4g">4G Technology</span>', unsafe_allow_html=True)
+        
         if 'Average RSRP (Signal Strenght 4G)' in df_filtered.columns:
-            st.markdown("#### RSRP 4G")
+            st.markdown("#### RSRP 4G (Signal Strength)")
             agg = df_filtered.groupby(['Lokasi Pengukuran', 'Operator'], as_index=False).agg({
                 'Average RSRP (Signal Strenght 4G)': lambda x: safe_agg(x)
             })
             fig = create_signal_quality_chart(agg, 'Lokasi Pengukuran',
-                'Average RSRP (Signal Strenght 4G)', 'RSRP 4G per Lokasi')
+                'Average RSRP (Signal Strenght 4G)', 'RSRP 4G per Lokasi (dBm)')
             if fig:
                 st.plotly_chart(fig, use_container_width=True)
+                st.caption("📌 Excellent: ≥-80 dBm | Good: -80 to -90 dBm | Fair: -90 to -100 dBm | Poor: <-100 dBm")
         
         if 'Average RSRQ (Signal Qualty 4G)' in df_filtered.columns:
-            st.markdown("#### RSRQ 4G")
+            st.markdown("#### RSRQ 4G (Signal Quality)")
             agg = df_filtered.groupby(['Lokasi Pengukuran', 'Operator'], as_index=False).agg({
                 'Average RSRQ (Signal Qualty 4G)': lambda x: safe_agg(x)
             })
             fig = create_signal_quality_chart(agg, 'Lokasi Pengukuran',
-                'Average RSRQ (Signal Qualty 4G)', 'RSRQ 4G per Lokasi')
+                'Average RSRQ (Signal Qualty 4G)', 'RSRQ 4G per Lokasi (dB)')
             if fig:
                 st.plotly_chart(fig, use_container_width=True)
     
@@ -806,9 +897,10 @@ def main():
             st.markdown(f"#### {sel_loc}")
             
             detail_cols = [
+                'Average RxLev (2G)',
+                'Average RxQual (2G)',
                 'Average RSRP (Signal Strenght 4G)',
                 'Average Speed Test DL (Mbps) (4G)',
-                'Browsing Success (%)',
                 'Youtube SR (%)',
                 'Average RTT Latency (ms)'
             ]
@@ -821,7 +913,7 @@ def main():
     # TAB 9: KESIMPULAN
     with tab9:
         st.markdown("### 📋 Kesimpulan Detail")
-        st.info("💡 Kesimpulan per tanggal untuk SEMUA operator")
+        st.info("💡 Kesimpulan per tanggal untuk SEMUA operator (2G + 4G)")
         
         if not has_date:
             st.warning("⚠️ Data tanggal tidak tersedia")
